@@ -1,7 +1,8 @@
 import { waitForGlobal } from '../utils/globals'
 import { sendResults } from '../utils/messaging'
-import { PneumaticConfig } from '../utils/interfaces'
+import { PneumaticConfig, RpcRequest, BackgroundMessage } from '../utils/interfaces'
 import { Message } from '../utils/enums'
+import config from '../config'
 import accountsHandler from './handlers/accounts'
 import requestsHandler from './handlers/requests'
 
@@ -18,23 +19,18 @@ const handlers = [accountsHandler, requestsHandler]
   // Can't do much until config is available
   await waitForGlobal('pneumaticConfig')
 
-  const config: PneumaticConfig = window.wrappedJSObject.pneumaticConfig
-
   /**
    * Listen for JSON-RPC request messages
   */
-  window.addEventListener(
-    // Would be cool to get shared config working
-    Message.EVENT_JSONRPC_REQUEST,
-    async (ev) => {
-      for (const handler of handlers) {
-        const response = await handler({ ...ev.detail, config })
-        if (response) {
-          sendResults(response.id, response.result)
-          break
-        }
+  browser.runtime.onMessage.addListener(async (message: BackgroundMessage) => {
+    if (message.type !== Message.EVENT_JSONRPC_REQUEST) return
+
+    for (const handler of handlers) {
+      const response = await handler({ ...message.detail, config })
+      if (response) {
+        sendResults(response.id, response.result)
+        break
       }
-      // TODO: Send error?
     }
-  )
+  })
 })()

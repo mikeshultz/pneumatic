@@ -3,11 +3,33 @@
  * provider.  It communicates with the background scripts to make JSON-RPC calls
  * to the configured JSON-RPC server.
  */
-import { PneumaticConfig } from '../utils/interfaces'
+import {
+  RpcRequest,
+  Pneumatic,
+  PneumaticConfig,
+  EIP1193Provider,
+  ExtendedProvider
+} from '../utils/interfaces'
 import { Message } from '../utils/enums'
 
+declare global {
+  interface Window {
+    hasRun: boolean
+    wrappedJSObject: any
+    ethereum: any
+    pneumatic: Pneumatic
+    pneumaticConfig: PneumaticConfig
+  }
+}
+
 class ProviderRpcError extends Error {
+  name: string
+  message: string
+  code: number
+  stack: any
+
   constructor(message: string, code: number) {
+    super(message)
     this.name = 'ProviderRpcError'
     this.message = message
     this.code = code
@@ -19,10 +41,10 @@ class ProviderRpcError extends Error {
  * Patch an EIP-1193 for Metamask compatability.  Mostly for depreciated API
  * methods that some Metamask consumers expect.
  *
- * @param provider {object} the EIP-1193 provider
+ * @param provider {EIP1193Provider} the EIP-1193 provider
  * @returns {object} patched provider
  */
-function patchMetamaskCompatProvider(provider: object) {
+function patchMetamaskCompatProvider(provider: EIP1193Provider): ExtendedProvider {
   /**
    * Metamask's send() function supporting multiple signatures
    */
@@ -35,7 +57,7 @@ function patchMetamaskCompatProvider(provider: object) {
      */
     if (arguments.length === 1 && typeof arguments === 'object') {
       // ethereum.send(payload: JsonRpcRequest)
-      return provider.request(...arguments)
+      return provider.request(...Array.from(arguments))
     } else if (arguments.length === 1 && typeof arguments === 'string') {
       // ethereum.send(method: string)
       return provider.request({ method: arguments[0] })
@@ -69,17 +91,16 @@ function patchMetamaskCompatProvider(provider: object) {
 /**
  * Create EIP-1193 provider expected by web3 libraries.
  *
- * @returns {object} provider
+ * @returns {EIP1193Provider} provider
  */
-function buildEIP1193Provider() {
+function buildEIP1193Provider(): EIP1193Provider {
   return {
     // TODO: implement evnet handling
-    on: (evName) => console.log(`on(${evName}) NOT IMPLEMENTED`),
-    removeListener: (evName) => console.log(`removeListener(${evName}) NOT IMPLEMENTED`),
-    request: ({ method, params }) => {
+    on: (evName: string) => console.log(`on(${evName}) NOT IMPLEMENTED`),
+    removeListener: (evName: string) => console.log(`removeListener(${evName}) NOT IMPLEMENTED`),
+    request: ({ method, params, id = +new Date() }: RpcRequest) => {
       return new Promise((resolve, reject) => {
-        const id = +new Date()
-        const ev = new CustomEvent(
+        const rev = new CustomEvent(
           Message.EVENT_JSONRPC_REQUEST,
           {
             detail: {
@@ -99,7 +120,7 @@ function buildEIP1193Provider() {
         // outstanding requests?
         window.addEventListener(
           Message.EVENT_JSONRPC_RESPONSE,
-          (ev) => {
+          (ev: CustomEvent) => {
             if (ev.detail.id === id) {
               resolve(ev.detail.result)
               clearTimeout(timeout)
@@ -109,18 +130,18 @@ function buildEIP1193Provider() {
 
         window.addEventListener(
           Message.EVENT_JSONRPC_ERROR_RESPONSE,
-          (ev) => {
+          (ev: CustomEvent) => {
             if (ev.detail.id === id) {
               const { code, message } = ev.detail
               console.log(`Error (${code}): ${message}`)
-              reject(ProviderRpcError(message, code))
+              reject(new ProviderRpcError(message, code))
               clearTimeout(timeout)
             }
           }
         )
 
         // Send request to the requests content script
-        window.dispatchEvent(ev)
+        window.dispatchEvent(rev)
       })
     }
   }
@@ -146,7 +167,7 @@ function load() {
 
   window.addEventListener(
     Message.EVENT_PROVIDER_EVENT,
-    (ev) => {
+    (ev: CustomEvent) => {
       console.log('General provider event:', ev.detail)
     }
   )

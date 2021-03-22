@@ -1,8 +1,12 @@
-import { PneumaticConfig } from '../utils/interfaces'
+import { Message } from '../utils/enums'
+import { PneumaticConfig, BackgroundMessage } from '../utils/interfaces'
+import config from '../config'
 
 const PNEUMATIC_SCRIPT_TAG_ID = 'pneumaticscript'
 const ETHERS_SCRIPT_TAG_ID = 'ethersscript'
 const MESSAGING_SCRIPT_TAG_ID = 'pneumaticmessagingscript'
+
+declare function cloneInto(obj: object, target: object, options?: object): object
 
 function inject() {
   const heads = document.getElementsByTagName('head')
@@ -24,10 +28,29 @@ function inject() {
   }
 }
 
-;(function () {
-  const pneumaticConfig: PneumaticConfig = {
-    PROVIDER_URL: 'http://archival.mikes.network:8545',
+// Relay request from browser to bg script
+window.addEventListener(
+  // Would be cool to get shared config working
+  Message.EVENT_JSONRPC_REQUEST,
+  async (ev: CustomEvent) => {
+    browser.runtime.sendMessage({
+      type: Message.EVENT_JSONRPC_REQUEST,
+      detail: ev.detail
+    })
   }
-  window.wrappedJSObject.pneumaticConfig = cloneInto(pneumaticConfig, window)
+)
+
+// Relay response from bg script to browser
+browser.runtime.onMessage.addListener(async (message: BackgroundMessage) => {
+  if (message.type !== Message.EVENT_JSONRPC_RESPONSE) return
+
+  window.dispatchEvent(new CustomEvent(
+    Message.EVENT_JSONRPC_RESPONSE,
+    { detail: cloneInto(message.detail, window) }
+  ))
+})
+
+;(function () {
+  window.wrappedJSObject.pneumaticConfig = cloneInto(config, window)
   inject()
 })()

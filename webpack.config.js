@@ -1,3 +1,4 @@
+const path = require('path')
 const CopyPlugin = require('copy-webpack-plugin')
 
 const package = require('./package.json')
@@ -17,7 +18,7 @@ function modify(buffer) {
 
 module.exports = {
   mode: 'development',
-  target: 'es5',
+  target: 'web', // es5
   entry: {
     inpage: `${__dirname}/src/inpage/index.ts`,
     background: `${__dirname}/src/background/index.ts`,
@@ -29,7 +30,20 @@ module.exports = {
     path: `${__dirname}/dist`
   },
   resolve: {
-    extensions: ['.ts', '.js', '.json']
+    alias: {
+      //'web-encoding': path.resolve(__dirname, 'node_modules/web-encoding/src/lib.-browser.js')
+      'web-encoding': path.resolve(__dirname, 'node_modules/web-encoding/src/lib.js')
+    },
+    extensions: ['.ts', '.js', '.json'],
+    aliasFields: ['browser', 'main', 'module'],
+    mainFields: ['browser', 'main', 'module'],
+    importsFields: ['browser', 'main', 'module'],
+  },
+  externals: {
+    /*'TextEncoder': 'web-encoding',
+    'TextDecoder': 'web-encoding',
+    'web-encoding': 'TextEncoder',
+    'web-encoding': 'TextDecoder',*/
   },
   module: {
     rules: [
@@ -37,14 +51,15 @@ module.exports = {
         test: /\.ts$/,
         exclude: /(node_modules|bower_components)/,
         use: {
-          loader: 'babel-loader',
-          options: {
+          //loader: 'babel-loader',
+          loader: 'ts-loader',
+          /*options: {
             presets: [
               [
                 '@babel/preset-env',
                 {
-                  "useBuiltIns": "usage",
-                  "corejs": 3, // or 2,
+                  //"useBuiltIns": "usage",
+                  //"corejs": 3, // or 2,
                   "targets": {
                     //"esmodules": true,
                     "firefox": "86", // TODO: Lower this?
@@ -53,8 +68,11 @@ module.exports = {
               ],
               '@babel/preset-typescript'
             ],
-            plugins: ['@babel/plugin-proposal-object-rest-spread']
-          }
+            plugins: [
+              '@babel/plugin-proposal-object-rest-spread',
+              '@babel/plugin-transform-runtime'
+            ]
+          }*/
         }
       }
     ]
@@ -75,6 +93,7 @@ module.exports = {
           'icons/pneumatic-logo-96x96.png',
         ].map(f => { return { from: `./${f}`, to: f } }),
         ...[
+          'ipfs/ipfs.html',
           'popup/index.html',
           'popup/index.js', // TODO
           'popup/popup.css', // TODO
