@@ -12,13 +12,14 @@
   "permissions": [
     "<all_urls>",
     "activeTab",
+    "storage",
     "webRequest",
     "webRequestBlocking"
   ],
   "browser_action": {
     "default_icon": "icons/pneumatic-logo-32x32.png",
     "default_title": "Pneumatic",
-    "default_popup": "popup/index.html"
+    "default_popup": "popup.html"
   },
   "web_accessible_resources": [
     "icons/pneumatic-logo-32x32.png",

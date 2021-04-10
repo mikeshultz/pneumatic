@@ -53,6 +53,10 @@ export interface HandlerResult {
   result: any
 }
 
+export interface KeyValueStorage {
+   [key: string]: any
+}
+
 export interface KeyValueFuncs {
    [key: string]: Function
 }

@@ -19,11 +19,12 @@ function modify(buffer) {
 module.exports = {
   mode: 'development',
   target: 'web', // es5
+  devtool: 'eval-cheap-module-source-map',
   entry: {
     inpage: `${__dirname}/src/inpage/index.ts`,
     background: `${__dirname}/src/background/index.ts`,
     content: `${__dirname}/src/content/index.ts`,
-    //popup: `${__dirname}/src/popup/index.js`,
+    popup: `${__dirname}/src/popup/index.tsx`,
   },
   output: {
     filename: '[name].js',
@@ -34,7 +35,7 @@ module.exports = {
       //'web-encoding': path.resolve(__dirname, 'node_modules/web-encoding/src/lib.-browser.js')
       'web-encoding': path.resolve(__dirname, 'node_modules/web-encoding/src/lib.js')
     },
-    extensions: ['.ts', '.js', '.json'],
+    extensions: ['.ts', '.tsx', '.js', '.json'],
     aliasFields: ['browser', 'main', 'module'],
     mainFields: ['browser', 'main', 'module'],
     importsFields: ['browser', 'main', 'module'],
@@ -48,7 +49,7 @@ module.exports = {
   module: {
     rules: [
       {
-        test: /\.ts$/,
+        test: /\.tsx?$/,
         exclude: /(node_modules|bower_components)/,
         use: {
           //loader: 'babel-loader',
@@ -74,6 +75,17 @@ module.exports = {
             ]
           }*/
         }
+      },
+      {
+        test: /\.s[ac]ss$/i,
+        use: [
+          // Creates `style` nodes from JS strings
+          "style-loader",
+          // Translates CSS into CommonJS
+          "css-loader",
+          // Compiles Sass to CSS
+          "sass-loader",
+        ],
       }
     ]
   },
@@ -92,12 +104,13 @@ module.exports = {
           'icons/pneumatic-logo-48x48.png',
           'icons/pneumatic-logo-96x96.png',
         ].map(f => { return { from: `./${f}`, to: f } }),
-        ...[
+        { from: `./src/popup/index.html`, to: 'popup.html' }
+        /*...[
           'ipfs/ipfs.html',
-          'popup/index.html',
-          'popup/index.js', // TODO
-          'popup/popup.css', // TODO
-        ].map(f => { return { from: `./src/${f}`, to: f } })
+          //'popup/index.html',
+          //'popup/index.js', // TODO
+          //'popup/popup.css', // TODO
+        ].map(f => { return { from: `./src/${f}`, to: f } })*/
       ]
     })
   ]

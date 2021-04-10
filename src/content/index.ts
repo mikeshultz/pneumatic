@@ -41,7 +41,7 @@ window.addEventListener(
 )
 
 // Relay response from bg script to browser
-browser.runtime.onMessage.addListener(async (message: BackgroundMessage) => {
+browser.runtime.onMessage.addListener((message: BackgroundMessage) => {
   if (message.type !== Message.EVENT_JSONRPC_RESPONSE) return
 
   window.dispatchEvent(new CustomEvent(
