@@ -6,44 +6,26 @@ import AccountSelector from '../components/AccountSelector'
 import useStorage from '../utils/useStorage'
 
 export default function Splash(): JSX.Element {
-  const [explicitUnlock, setExplicitUnlock] = useState(false)
+  const [nonce, setNonce] = useState(0)
   const [dbExists, setDBExists] = useState(false)
   const storage = useStorage()
 
-  //useEffect(() => {}, [dbExists])
-
   useEffect(() => {
-    console.log('useEffect', storage ? storage.unlocked : null)
     if (storage) {
       if (storage.unlocked) {
         setDBExists(true)
       } else {
-        console.log('checkinf for fesUnlocked')
         storage.storageExists().then((exists: boolean) => {
-          console.log('fesUnlocked: exists', exists)
-          setDBExists(!!exists)
+          setDBExists(exists)
         }).catch((err: Error) => {
           if (!err.toString().includes('Locked')) {
             // TODO: alert user
             console.error(err)
           }
         })
-        /*storage.get('fesUnlocked').then((exists: string) => {
-          console.log('fesUnlocked: exists', exists)
-          setDBExists(!!exists)
-        }).catch((err: Error) => {
-          if (!err.toString().includes('Locked')) {
-            // TODO: alert user
-            console.error(err)
-          }
-        })*/
       }
     }
   })
-  //}, [storage, unlocked])
-
-  console.log('dbExists:', dbExists)
-  console.log('unlocked:', storage ? storage.unlocked : null)
 
   const showUnlock = dbExists && !storage.unlocked
 
@@ -54,7 +36,7 @@ export default function Splash(): JSX.Element {
       </div>
       {dbExists
         ? showUnlock
-          ? <UnlockStorage done={setExplicitUnlock} /> 
+          ? <UnlockStorage onUnlock={() => setNonce(nonce+1)} /> 
           : <AccountSelector />
         : <OnBoard setDBExists={setDBExists} />
       }

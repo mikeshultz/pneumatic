@@ -4,23 +4,28 @@ import useStorage from '../utils/useStorage'
 
 import Button from './Button'
 import PasswordField from './PasswordField'
+import Error from './Error'
 
 const PASSPHRASE_NAME = 'passphrase'
 
 interface UnlockStorageParams {
-  done: Function
+  onUnlock: Function
 }
 
 export default function UnlockStorage(props: UnlockStorageParams): JSX.Element {
-  const { done } = props
+  const { onUnlock } = props
   const storage = useStorage()
-  const [passphrase, setPassphrase] = useState(null)
+  const [unlockError, setUnlockError] = useState(null)
+  const [passphrase, setPassphrase] = useState('')
 
   function submit(ev: Event) {
     ev.preventDefault()
-    console.log('unlock with phassphrase:', passphrase)
-    storage.unlock(passphrase).then(() => {
-      done(true)
+    storage.unlock(passphrase).then((unlocked) => {
+      setUnlockError(null)
+      setPassphrase('')
+      onUnlock()
+    }).catch((err: Error) => {
+      setUnlockError(err)
     })
   }
 
@@ -32,12 +37,21 @@ export default function UnlockStorage(props: UnlockStorageParams): JSX.Element {
     }
   }
 
+  if (unlockError) {
+    return (
+      <div className="splash-container">
+        <Error error={unlockError} />
+      </div>
+    )
+  }
+
   return (
     <div className="splash-container">
       <PasswordField
         name={PASSPHRASE_NAME}
         label="Unlock passphrase"
-        onChange={handleChange} />
+        onChange={handleChange}
+        value={passphrase} />
       <Button text="Unlock" onClick={submit} />
     </div>
   )

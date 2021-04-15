@@ -40,10 +40,10 @@ const kvStore = new KeyValue()
       }
     } else if (message.type === Message.EVENT_GET) {
       const val = kvStore.get(message.detail.key)
-      console.log('background SENDING GET RESPONSE:', val)
-      sendValue(message.detail.key, val)
+      sendValue(message.detail.id, message.detail.key, val)
     } else if (message.type === Message.EVENT_SET) {
       kvStore.set(message.detail.key, message.detail.value)
+      sendValue(message.detail.id, message.detail.key, true, Message.EVENT_SET_RESPONSE)
     } else {
       console.error(`Unknown message type ${message.type}`)
     }

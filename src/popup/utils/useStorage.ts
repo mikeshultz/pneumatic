@@ -6,42 +6,69 @@ import { Message } from '../../utils/enums'
 import { BackgroundMessage } from '../../utils/interfaces'
 
 import { PasswordEncryption } from './encrypt'
+import { addMessageListener } from './listeners'
 
 const PROOF_KEY = 'fesProof'
 const PASSPHRASE_KEY = 'pneumaticPassphrase'
+const BACKGROUND_RESPONSE_TIMEOUT = 3000
 
 // singleton
 let storeInstance = +new Date()
 let store: FirefoxEncryptedStorage = null
 
+interface FESConstructorParams {
+  storageType?: string
+  onAutoUnlock?: Function
+}
+
+// TODO: make this send/response pattern generic
 function storePassphrase(pp: string) {
-  browser.runtime.sendMessage({
-    type: Message.EVENT_SET,
-    detail: {
-      key: PASSPHRASE_KEY,
-      value: pp
-    }
+  return new Promise((resolve, reject) => {
+    const id = +new Date()
+    const timeout = setTimeout(() => {
+      reject('Timed out waiting for SET_RESPONSE')
+    }, BACKGROUND_RESPONSE_TIMEOUT)
+
+    // Prepare for response
+    //browser.runtime.onMessage.addListener((message: BackgroundMessage) => {
+    addMessageListener((message: BackgroundMessage) => {
+      if (
+        message.type !== Message.EVENT_SET_RESPONSE
+        || !(message && message.detail && message.detail.id === id)
+      ) {
+        return
+      }
+      clearTimeout(timeout)
+      resolve(message.detail.success)
+    })
+
+    browser.runtime.sendMessage({
+      type: Message.EVENT_SET,
+      detail: {
+        id,
+        key: PASSPHRASE_KEY,
+        value: pp
+      }
+    })
   })
 }
 
 function getPassphrase(): Promise<string> {
-  const id = +new Date()
-  console.log('@@@@@@@@@@@@@@@@@@@@@getPassphrase id', id)
   return new Promise((resolve, reject) => {
+    const id = +new Date()
     const timeout = setTimeout(() => {
       reject('Timed out waiting for GET_RESPONSE')
-    }, 3000)
+    }, BACKGROUND_RESPONSE_TIMEOUT)
 
     // Prepare for response
-    browser.runtime.onMessage.addListener((message: BackgroundMessage) => {
-      console.log('@@@@@@@@@@@@@@@@@@@@@getPassphrase message', message)
+    addMessageListener((message: BackgroundMessage) => {
       if (
         message.type !== Message.EVENT_GET_RESPONSE
-        && (message && message.detail && message.detail.key === PASSPHRASE_KEY)
+        || !(message && message.detail && message.detail.id === id)
       ) {
         return
       }
-      console.log('@@@@@@@@@@@@@@@@@@@@@resolved')
+
       clearTimeout(timeout)
       resolve(message.detail.value)
     })
@@ -62,7 +89,12 @@ class FirefoxEncryptedStorage {
   crypt: PasswordEncryption
   unlocked: boolean
 
-  constructor(storageType: string = 'local') {
+  constructor(params: FESConstructorParams) {
+    const {
+      storageType = 'local',
+      onAutoUnlock = null
+    } = params
+
     this.initialized = false
 
     if (storageType === 'local') {
@@ -77,10 +109,13 @@ class FirefoxEncryptedStorage {
 
     getPassphrase().then((passphrase: string) => {
       if (passphrase) {
-        console.log('FirefoxEncryptedStorage init passphrase:', passphrase)
         this.crypt.unlock(passphrase)
         this.unlocked = true
+        if (onAutoUnlock) {
+          onAutoUnlock(true)
+        }
       } else {
+        console.debug('No stored session passphrase')
         this.unlocked = false
       }
 
@@ -92,11 +127,10 @@ class FirefoxEncryptedStorage {
   }
 
   isReady(): boolean {
-    return !!this.storage && !!this.crypt && this.unlocked
+    return !!this.storage && !!this.crypt
   }
 
   isValidProof(proof: string): boolean {
-    console.log(`isValidProof ? ${proof} === ${SHA3(this.crypt.passphrase).toString()}`)
     return proof === SHA3(this.crypt.passphrase).toString()
   }
 
@@ -105,10 +139,8 @@ class FirefoxEncryptedStorage {
   }
 
   async storageExists(): Promise<boolean> {
-    console.log('storageExists')
     if (!!this.crypt) {
       const fesUnlocked = await this.storage.get('fesUnlocked')
-      console.log('fesUnlocked:', Object.keys(fesUnlocked).length, fesUnlocked)
       return Object.keys(fesUnlocked).length > 0
     }
 
@@ -116,19 +148,23 @@ class FirefoxEncryptedStorage {
   }
 
   async isUnlocked(): Promise<boolean> {
-    console.log('isUnlocked')
-    console.log('this.crypt:', this.crypt)
-    console.log('this.crypt.passphrase:', this.crypt.passphrase)
     if (!!this.crypt && !!this.crypt.passphrase) {
-      const fesUnlocked = await this.get('fesUnlocked')
-      console.log('dat:', fesUnlocked)
+      try {
+        const fesUnlocked = await this.get('fesUnlocked')
 
-      if (fesUnlocked && this.isValidProof(fesUnlocked)) {
-        console.log('valid proof')
-        return true
-      } else if (!fesUnlocked) {
-        await this.setProof()
-        return true
+        if (fesUnlocked && this.isValidProof(fesUnlocked)) {
+          return true
+        } else if (!fesUnlocked) {
+          await this.setProof()
+          return true
+        }
+      } catch (err) {
+        if (err.toString().includes('locked')) {
+          return false
+        } else {
+          console.error('FirefoxEncryptedStorage error checking if unlocked')
+          throw err
+        }
       }
     }
 
@@ -147,18 +183,29 @@ class FirefoxEncryptedStorage {
   async unlock(passphrase: string) {
     this.crypt.unlock(passphrase)
     const unlocked = await this.isUnlocked()
-    console.log('********************unlocked', unlocked)
     this.unlocked = unlocked
+    if (unlocked) {
+      storePassphrase(passphrase)
+    } else {
+      throw new Error('Failed to unlock.  Invalid encryption passphrase')
+    }
+    return unlocked
   }
 
   async get(k: string): Promise<any> {
-    console.log(`FirefoxEncryptedStorage.get(${k})`)
     const data = await this.storage.get(k)
     if (typeof data[k] !== 'undefined') {
-      return this.crypt.decrypt(data[k])
+      try {
+        return this.crypt.decrypt(data[k])
+      } catch (err) {
+        if (err.toString().includes('Malformed UTF-8 data')) {
+          throw new Error('Storage is locked')
+        } else {
+          throw err
+        }
+      }
     }
 
-    console.log("DEBUG return")
     return
   }
 
@@ -171,12 +218,14 @@ class FirefoxEncryptedStorage {
 }
 
 export default function useStorage() {
+  const [autoUnlocked, setAutoUnlocked] = useState(false)
   const unlocked = get(store, 'unlocked', false)
-  useEffect(() => {}, [store, unlocked])
+  useEffect(() => {}, [autoUnlocked, store, unlocked])
 
   if (!store) {
-    store = new FirefoxEncryptedStorage()
+    store = new FirefoxEncryptedStorage({ onAutoUnlock: () => {
+      setAutoUnlocked(true)
+    }})
   }
-  console.log('store:', store)
   return store && store.isReady() ? store : null
 }

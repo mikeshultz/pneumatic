@@ -30,7 +30,7 @@ export default function OnBoard(props: OnBoardProps): JSX.Element {
       setError('storage is unavailable')
       return
     }
-    console.log('unlock with phassphrase:', passphrase)
+
     storage.setPassphrase(passphrase).then(() => {
       setDBExists(true)
     }).catch((err: Error) => {
@@ -47,8 +47,6 @@ export default function OnBoard(props: OnBoardProps): JSX.Element {
       console.debug(`Unknown target ${ev.target.name}`)
     }
   }
-
-  console.log(`passphaseConfirm: ${passphaseConfirm}`)
 
   return (
     <div className="splash-container">

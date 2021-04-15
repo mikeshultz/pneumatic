@@ -6,6 +6,7 @@ export interface FormFieldProps {
   className?: string
   label?: string
   placeholder?: string
+  value?: string
   onChange?: ChangeEventHandler<HTMLInputElement>
 }
 
