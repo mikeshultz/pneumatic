@@ -10,6 +10,12 @@ A decntralized Web browser extension.
 
 This extension follows [EIP 1193](https://eips.ethereum.org/EIPS/eip-1193).
 
+## IPFS
+
+Will attempt to serve IPFS URLs
+
+- ipfs://QmZ4tDuvesekSs4qM5ZBKpXiZGun7S2CYtEZRB3DYXkjGx
+
 ## Development
 
 Perhaps this will have better docs later.
@@ -18,11 +24,15 @@ Perhaps this will have better docs later.
 
 In one terminal, run webpack:
 
-    ./node_modules/.bin/webpack --color w
+    yarn build:watch
 
 In another:
 
-    web-ext run -v
+    yarn start
 
 This will launch Firefox with the temporary extension installed, and reload on
 file changes.
+
+Test provider in browser console:
+
+    pneumatic.provider.request({ method: 'eth_blockNumber', params: [] }).then(res => console.log(parseInt(res, 16)))
